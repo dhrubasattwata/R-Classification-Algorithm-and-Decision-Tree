@@ -1,0 +1,136 @@
+---
+title: "Decision Tree"
+author: "Dhrubasattwata Roy Choudhury"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Decision Tree
+
+Decision tree is a graph to represent choices and their results in form of a tree. The nodes in the graph represent an event or choice and the edges of the graph represent the decision rules or conditions. It is mostly used in Machine Learning and Data Mining applications using R.
+
+Examples of use of decision tress is − predicting an email as spam or not spam, predicting of a tumor is cancerous or predicting a loan as a good or bad credit risk based on the factors in each of these.
+
+### Dataset: Importing
+We will use the titanic_data.csv for decision tree analysis. Download it from GitHub.
+
+```{r}
+titanic <-read.csv("C:/Users/Dhruba/Documents/R/data/titanic_data.csv")
+
+shuffle_index <- sample(1:nrow(titanic))
+titanic <- titanic[shuffle_index, ] 
+#so that the passengers from different classes are mixed up
+```
+
+### Dataset: Cleaning 
+The structure of the data shows some variables have NA's. Data clean up to be done as follows
+
+1. Drop variables home.dest,cabin, name, X and ticket  
+2. Create factor variables for pclass and survived  
+3. Drop the NA
+
+```{r}
+library(dplyr)
+# Drop variables
+clean_titanic <- titanic %>%
+select(-c(home.dest, cabin, name, x, ticket)) %>% 
+#Convert to factor level
+	mutate(pclass = factor(pclass, levels = c(1, 2, 3), labels = c('Upper', 'Middle', 'Lower')),
+	survived = factor(survived, levels = c(0, 1), labels = c('No', 'Yes'))) %>%
+na.omit()
+glimpse(clean_titanic)
+```
+
+### Create train/test set
+The common practice is to split the data 80/20, 80 percent of the data serves to train the model, and 20 percent to make predictions.
+```{r}
+train_sample <- 1: floor(0.8 * nrow(clean_titanic))
+
+data_train <- clean_titanic[train_sample,]
+data_test <- clean_titanic[-train_sample,]
+print(dim(data_train))
+print(dim(data_test))
+
+```
+
+To check the train and test sample:
+```{r}
+prop.table(table(data_train$survived))
+prop.table(table(data_test$survived))
+
+```
+
+
+### BUILD the Model
+
+```{r}
+library(rpart)
+library(rpart.plot)
+fit <- rpart(survived~., data = data_train, method = 'class')
+rpart.plot(fit, extra = 106)
+
+```
+
+### Prediction using the Model
+Make a prediction
+You can predict your test dataset.
+```{r}
+predict_unseen <-predict(fit, data_test, type = 'class')
+```
+
+### Model Performance: Confusion Matrix
+
+```{r}
+table_mat <- table(data_test$survived, predict_unseen)
+table_mat
+```
+
+### Model Performance:Accuracy
+
+```{r}
+accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+print(paste('Accuracy for test', accuracy_Test))
+```
+
+
+### Tune the parameters
+Decision tree has various parameters that control aspects of the fit. In rpart library, you can control the parameters using the rpart.control() function.
+
+Arguments:  
+-minsplit: Set the minimum number of observations in the node before the algorithm perform a split  
+-minbucket:  Set the minimum number of observations in the final note i.e. the leaf   
+-maxdepth: Set the maximum depth of any node of the final tree. The root node is treated a depth 0  
+
+We will proceed as follow:  
+
+Construct function to return accuracy  
+Tune the maximum depth  
+Tune the minimum number of sample a node must have before it can split  
+Tune the minimum number of sample a leaf node must have  
+```{r}
+accuracy_tune <- function(fit) {
+    predict_unseen <- predict(fit, data_test, type = 'class')
+    table_mat <- table(data_test$survived, predict_unseen)
+    accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+    accuracy_Test
+}
+```
+
+
+Changing the parameters for optimization:
+```{r}
+control <- rpart.control(minsplit = 4,
+    minbucket = round(5 / 3),
+    maxdepth = 3,
+    cp = 0)
+
+tune_fit <- rpart(survived~., data = data_train, method = 'class', control = control)
+
+accuracy_tune(tune_fit)
+```
+As a reminder, the aim is to obtain an accuracy higher than 0.774
+
+### Great, the  accuracy is higher.

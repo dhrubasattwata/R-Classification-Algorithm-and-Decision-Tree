@@ -1,0 +1,205 @@
+---
+title: "K-Means Clustering"
+author: "Dhrubasattwata Roy Choudhury"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Clustering Analysis in R using K-means
+
+The purpose of clustering analysis is to identify patterns in your data and create groups according to those patterns. Therefore, if two points have similar characteristics, that means they have the same pattern and consequently, they belong to the same group. By doing clustering analysis we should be able to check what features usually appear together and see what characterizes a group.
+
+In this post, we are going to perform a clustering analysis with multiple variables using the algorithm K-means. The intention is to find groups of mammals based on the composition of the species’ milk.
+
+### Dataset
+The dataset used is part of the package cluster.datasets and contains 25 observations on the following 6 variables:
+
+name — a character vector for the name of the animals  
+water — a numeric vector for the water content in the milk sample  
+protein — a numeric vector for the amount of protein in the milk sample  
+fat — a numeric vector for the fat content in the milk sample  
+lactose — a numeric vector for the amount of lactose in the milk sample  
+ash — a numeric vector for the amount of mineral in the milk sample
+
+```{r}
+library(cluster.datasets)
+data(all.mammals.milk.1956)
+head(all.mammals.milk.1956)
+```
+
+The charts below show us the distribution for each variable. Each point represents a mammal species (25 in total).
+```{r}
+library(tidyverse)
+library(gridExtra)
+
+data(all.mammals.milk.1956)
+
+plot1 <- all.mammals.milk.1956 %>% 
+    ggplot(aes(x = "all mammals", y = water)) + 
+    geom_jitter(width = .025, height = 0, size = 2, alpha = .5, color = "blue") +
+  labs(x = "", y="percentage of water")
+  
+plot2 <-  all.mammals.milk.1956 %>%
+  ggplot(aes(x = "all mammals", y = protein)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6,  color = "orange") +
+  labs(x = "", y="percentage of protein")
+  
+plot3 <-  all.mammals.milk.1956 %>%
+  ggplot(aes(x = "all mammals", y = fat)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6,  color = "green") +
+  labs(x = "", y="percentage of fat")
+  
+plot4 <-  all.mammals.milk.1956 %>%
+  ggplot(aes(x = "all mammals", y = lactose)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6,  color = "red") +
+  labs(x = "", y="percentage of lactose")
+  
+plot5 <-  all.mammals.milk.1956 %>%
+  ggplot(aes(x = "all mammals", y = ash)) + 
+    geom_jitter(width = .02, height = 0, size = 2, alpha = .6,  color = "violet") +
+  labs(x = "", y="percentage of ash")
+  
+grid.arrange(plot1, plot2, plot3, plot4, plot5)
+```
+
+Each variable has different behavior and we could identify groups of mammals on each one individually, but that’s not the purpose here.  
+All the variables will be used in the clustering on a linear scale. Sometimes, when the values (for each feature) are in a big range, for example from 0 up to 1 million, it’s interesting to use a logarithmic scale because on a log scale we would highlight bigger differences between the values and smaller differences would be considered less important. Since the values in our dataset vary between 0 and 100, we are going to use a linear scale, which considers differences between values equally important.
+
+### Clustering
+The clustering algorithm that we are going to use is the K-means algorithm, which we can find in the package stats. The K-means algorithm accepts two parameters as input:  
+1. The data  
+2. A K value, which is the number of groups that we want to create.
+
+### Choosing a good K
+The bigger is the K you choose, the lower will be the variance within the groups in the clustering. If K is equal to the number of observations, then each point will be a group and the variance will be 0. It’s interesting to find a balance between the number of groups and their variance. A variance of a group means how different the members of the group are. The bigger is the variance, the bigger is the dissimilarity in a group.
+
+```{r}
+# As the initial centroids are defined randomly. Let K = 2,
+# we define a seed for purposes of reprodutability
+set.seed(123)
+
+# Let's remove the column with the mammals' names, so it won't be used in the clustering
+input <- all.mammals.milk.1956[,2:6]
+
+# The nstart parameter indicates that we want the algorithm to be executed 20 times.
+# This number is not the number of iterations, it is like calling the function 20 times and then
+# the execution with lower variance within the groups will be selected as the final result.
+kmeans(input, centers = 2, nstart = 20)
+```
+
+The kmeans() function outputs the results of the clustering. We can see the centroid vectors (cluster means), the group in which each observation was allocated (clustering vector) and a percentage (68.8%) that represents the compactness of the clustering, that is, how similar are the members within the same group. If all the observations within a group were in the same exact point in the n-dimensional space, then we would achieve 100% of compactness.
+
+The Elbow Method of Choosing K:  
+The elbow function below plots a chart showing the “within sum of squares” (withinss) by the number of groups (K value) chosen for several executions of the algorithm. The within sum of squares is a metric that shows how dissimilar are the members of a group., the greater is the sum, the greater is the dissimilarity within a group.
+
+```{r}
+#' Plots a chart showing the sum of squares within a group for each execution of the kmeans algorithm. 
+#' In each execution the number of the initial groups increases by one up to the maximum number of centers passed as argument.
+#'
+#' @param data The dataframe to perform the kmeans 
+#' @param nc The maximum number of initial centers
+#'
+wssplot <- function(data, nc=15, seed=123){
+               wss <- (nrow(data)-1)*sum(apply(data,2,var))
+               for (i in 2:nc){
+                    set.seed(seed)
+                    wss[i] <- sum(kmeans(data, centers=i)$withinss)}
+                plot(1:nc, wss, type="l", col= "darkgreen", xlab="Number of groups",
+                     ylab="Sum of squares within a group")}
+
+wssplot(input, nc = 20)
+```
+
+By Analysing the chart from right to left, we can see that when the number of groups (K) reduces from 4 to 3 there is a big increase in the sum of squares, bigger than any other previous increase. That means that when it passes from 4 to 3 groups there is a reduction in the clustering compactness (by compactness, I mean the similarity within a group). Our goal, however, is not to achieve compactness of 100% — for that, we would just take each observation as a group. The main purpose is to find a fair number of groups that could explain satisfactorily a considerable part of the data.  
+So, let’s choose K = 4 and run the K-means again.
+
+```{r}
+set.seed(123)
+clustering <- kmeans(input, centers = 4, nstart = 20)
+clustering
+```
+Using 2 groups (K = 2) we had 68,8% of well-grouped data. Using 4 groups (K = 4) that value raised to 95.1%, which is a good value for us.
+
+### Visualizing the clusters
+```{r}
+library(cluster)
+library(factoextra)
+
+data(all.mammals.milk.1956)
+data<- all.mammals.milk.1956[,1:6]
+rownames(data) <- data[,1]
+data <- data[,2:6]
+fviz_cluster(clustering, data = data)+theme_minimal()
+```
+
+### Model Performance/ Clustering Validation
+
+We may use the silhouette coefficient (silhouette width) to evaluate the goodness of our clustering.
+
+Interpretation of the silhouette width is the following:  
+Si > 0 means that the observation is well clustered. The closest it is to 1, the best it is clustered.  
+Si < 0 means that the observation was placed in the wrong cluster.  
+Si = 0 means that the observation is between two clusters.  
+The silhouette plot below gives us evidence that our clustering using four groups is good because there’s no negative silhouette width and most of the values are bigger than 0.5.
+
+```{r}
+library(cluster)
+library(factoextra)
+
+sil <- silhouette(clustering$cluster, dist(input))
+fviz_silhouette(sil)
+```
+
+
+### Clustering interpretation
+
+The following plot shows the final result of our clustering. The actual plot is interactive, but the image below is not. You can reproduce the plot using the code below. In the interactive plot, you may isolate the groups to better understand each one individually.
+
+```{r}
+library(GGally)
+library(plotly)
+
+all.mammals.milk.1956$cluster <- as.factor(clustering$cluster)
+
+p <- ggparcoord(data = all.mammals.milk.1956, columns = c(2:6), groupColumn = "cluster", scale = "std") + labs(x = "milk constituent", y = "value (in standard-deviation units)", title = "Clustering")
+ggplotly(p)
+```
+
+The purpose of clustering analysis is to identify patterns in the data. As we can see in the plot above, observations within the same group tend to have similar characteristics.  
+Let’s take the green group as an instance to evaluate. The two mammal species that belong to that group, namely seal and dolphin, they have the lowest percentage of water (44.9% and 46.4%); they both have around 10% of protein in their milk; they have the highest percentage of fat in the milk among all other species as well as the lowest percentage of lactose. This is the pattern found that puts seals and dolphins together in the same group. We can identify such patterns in the other groups as well.
+
+
+## Prediction using K-Means
+Using K-Means algorithm for Prediction Purposes
+
+```{r}
+library(cluster.datasets)
+data(all.mammals.milk.1956)
+df <- all.mammals.milk.1956
+rownames(df) <- df[,1]
+df <- df[,2:6]
+
+clustering <-kmeans(df, 4)
+center <-clustering$centers
+
+clusters <- function(x, centers) {
+  # compute squared euclidean distance from each sample to each cluster center
+  tmp <- sapply(seq_len(nrow(x)),
+                function(i) apply(centers, 1,
+                                  function(v) sum((x[i, ]-v)^2)))
+  max.col(-t(tmp))  # find index of min distance
+}
+
+# This is where you insert the new data
+newData <- data [1:10,]
+
+cl.pred <- clusters(newData, center)
+df <- cbind(newData, Cluster=cl.pred )
+df
+```
+
+
+
